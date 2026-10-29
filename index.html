@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark light" />
+<meta name="description" content="Private Study — 브라우저 안에서 동작하는 개인 웹 작업 공간" />
+<title>Private Study</title>
+
+<!-- PWA 매니페스트: 별도 파일(manifest.webmanifest)이 같은 폴더에 있어야 동작합니다 -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0f1419" />
+
+<style>
+  /* ===== 색상 토큰 ===== */
+  :root {
+    --bg: #0f1419;
+    --bg-elev: #1a2129;
+    --bg-elev-2: #232c37;
+    --border: #2d3742;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --accent: #4f9eff;
+    --accent-dim: #2d6fd1;
+    --danger: #ff6b6b;
+    --ok: #4ade80;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 6px 24px rgba(0,0,0,.35);
+    --focus: 0 0 0 3px rgba(79,158,255,.55);
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --bg-elev: #ffffff;
+    --bg-elev-2: #eef1f5;
+    --border: #d6dde5;
+    --text: #1a222c;
+    --text-dim: #5a6775;
+    --accent: #2d6fd1;
+    --accent-dim: #4f9eff;
+    --danger: #d64545;
+    --ok: #15803d;
+    --shadow: 0 6px 24px rgba(20,30,45,.12);
+    --focus: 0 0 0 3px rgba(45,111,209,.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* ===== 공통 ===== */
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 9px 14px;
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  button:hover { background: var(--border); }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-dim); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.ghost { background: transparent; }
+  :focus-visible { outline: none; box-shadow: var(--focus); }
+  input {
+    font: inherit;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 11px 13px;
+    width: 100%;
+  }
+  input::placeholder { color: var(--text-dim); }
+  a { color: var(--accent); }
+
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  /* ===== 헤더 ===== */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 9px;
+    font-weight: 700; font-size: 1.1rem; white-space: nowrap;
+  }
+  .logo .mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    display: grid; place-items: center; color: #fff; font-size: .85rem; font-weight: 800;
+  }
+  .addr-form { display: flex; gap: 8px; flex: 1 1 320px; min-width: 220px; }
+  .addr-form input { flex: 1; }
+  .header-actions { display: flex; gap: 8px; }
+
+  /* ===== 본문 레이아웃 ===== */
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .policy-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: .82rem; color: var(--text-dim);
+    background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  }
+  .policy-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+
+  .workspace { flex: 1; display: grid; grid-template-columns: 260px 1fr; min-height: 0; }
+  @media (max-width: 760px) { .workspace { grid-template-columns: 1fr; } }
+
+  .sidebar {
+    background: var(--bg-elev); border-right: 1px solid var(--border);
+    padding: 16px; overflow-y: auto;
+  }
+  @media (max-width: 760px) { .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 40vh; } }
+  .sidebar h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin: 0 0 10px; }
+  .sidebar section { margin-bottom: 22px; }
+
+  .fav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .fav-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-elev-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 10px;
+  }
+  .fav-item .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
+  .fav-item button { padding: 4px 8px; font-size: .78rem; }
+  .fav-empty { color: var(--text-dim); font-size: .85rem; line-height: 1.5; }
+  .add-fav-row { display: flex; gap: 6px; margin-top: 8px; }
+  .add-fav-row input { font-size: .85rem; padding: 8px 10px; }
+
+  /* ===== 뷰어 ===== */
+  .viewer { position: relative; background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
+  .viewer iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  .viewer-overlay {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    padding: 24px; text-align: center; background: var(--bg);
+  }
+  .viewer-card { max-width: 440px; }
+  .viewer-card h3 { margin: 0 0 10px; font-size: 1.15rem; }
+  .viewer-card p { color: var(--text-dim); line-height: 1.6; margin: 8px 0; font-size: .92rem; }
+  .viewer-card .big-icon { font-size: 2.4rem; margin-bottom: 8px; }
+  .viewer-card .btn-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .spinner {
+    width: 34px; height: 34px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== 모달 / 오버레이 ===== */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: grid; place-items: center; padding: 20px; z-index: 50;
+  }
+  .modal {
+    background: var(--bg-elev); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    width: 100%; max-width: 420px; padding: 26px;
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 1.3rem; }
+  .modal p { color: var(--text-dim); line-height: 1.6; font-size: .9rem; margin: 6px 0 16px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal label { display: block; font-size: .85rem; margin-bottom: 6px; color: var(--text-dim); }
+  .modal .btn-row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  .msg { font-size: .85rem; margin-top: 10px; min-height: 1.2em; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+
+  /* 잠금 화면 (전체 가림) */
+  .lock-screen {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--bg); display: grid; place-items: center; padding: 20px;
+  }
+  .lock-box { width: 100%; max-width: 360px; text-align: center; }
+  .lock-box .mark {
+    width: 54px; height: 54px; border-radius: 14px; margin: 0 auto 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.2rem;
+  }
+  .pin-dots { display: flex; gap: 10px; justify-content: center; margin: 18px 0; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); }
+  .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+
+  /* 설정 리스트 */
+  .settings-list { display: flex; flex-direction: column; gap: 10px; }
+  .settings-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px; background: var(--bg-elev-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .settings-row .info { min-width: 0; }
+  .settings-row .info strong { display: block; font-size: .92rem; }
+  .settings-row .info span { font-size: .8rem; color: var(--text-dim); }
+
+  .notice {
+    font-size: .82rem; color: var(--text-dim); line-height: 1.6;
+    background: var(--bg-elev-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px; margin-top: 14px;
+  }
+  .notice strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- ===================== 잠금 화면 ===================== -->
+<div id="lockScreen" class="lock-screen hidden" role="dialog" aria-modal="true" aria-label="잠금 화면">
+  <div class="lock-box">
+    <div class="mark" aria-hidden="true">PS</div>
+    <h2 id="lockTitle">잠금 해제</h2>
+    <p id="lockSub" style="color:var(--text-dim);font-size:.9rem;">PIN을 입력하세요</p>
+    <div class="pin-dots" id="pinDots" aria-hidden="true"></div>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off"
+           aria-label="PIN 입력" maxlength="12" style="text-align:center;letter-spacing:.3em;font-size:1.3rem;" />
+    <div class="msg err" id="lockMsg" role="alert"></div>
+    <div class="btn-row" style="display:flex;gap:8px;justify-content:center;margin-top:14px;">
+      <button id="lockSubmit" class="primary" type="button">확인</button>
+      <button id="lockForgot" class="ghost" type="button">PIN을 잊으셨나요?</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 최초 PIN 설정 ===================== -->
+<div id="setupScrim" class="scrim hidden" role="dialog" aria-modal="true" aria-label="PIN 설정">
+  <div class="modal">
+    <h2>Private Study 시작하기</h2>
+    <p>이 작업 공간을 보호할 PIN을 설정하세요. PIN은 평문으로 저장되지 않고, 이 기기 브라우저에만 암호 해시로 보관됩니다.</p>
+    <div class="field">
+      <label for="setupPin1">PIN (숫자 4자리 이상)</label>
+      <input id="setupPin1" type="password" inputmode="numeric" autocomplete="off" maxlength="12" />
+    </div>
+    <div class="field">
+      <label for="setupPin2">PIN 확인</label>
+      <input id="setupPin2" type="password" inputmode="numeric" autocomplete="off" maxlength="12" />
+    </div>
+    <div class="msg err" id="setupMsg" role="alert"></div>
+    <div class="btn-row">
+      <button id="setupSubmit" class="primary" type="button">PIN 설정하고 시작</button>
+    </div>
+    <div class="notice" id="cryptoWarn"></div>
+  </div>
+</div>
+
+<!-- ===================== 메인 앱 ===================== -->
+<div id="app" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+
+  <header>
+    <div class="logo"><span class="mark" aria-hidden="true">PS</span><span>Private Study</span></div>
+    <form class="addr-form" id="addrForm" autocomplete="off">
+      <input id="addrInput" type="text" inputmode="url" placeholder="https:// 주소를 입력하세요"
+             aria-label="웹 주소" spellcheck="false" />
+      <button class="primary" type="submit">이동</button>
+    </form>
+    <div class="header-actions">
+      <button id="btnLock" type="button" title="지금 잠그기">🔒 잠금</button>
+      <button id="btnSettings" type="button" title="설정">⚙️ 설정</button>
+    </div>
+  </header>
+
+  <div class="policy-bar">
+    <span class="dot" aria-hidden="true"></span>
+    <span id="policyText">방문 기록을 저장하지 않습니다 · 즐겨찾기만 이 기기에 보관됩니다</span>
+  </div>
+
+  <main>
+    <div class="workspace">
+      <aside class="sidebar">
+        <section>
+          <h2>즐겨찾기</h2>
+          <ul class="fav-list" id="favList"></ul>
+          <div class="add-fav-row">
+            <input id="favName" type="text" placeholder="이름" aria-label="즐겨찾기 이름" />
+            <button id="btnAddFav" type="button" title="현재 주소를 즐겨찾기에 추가">＋</button>
+          </div>
+          <p style="font-size:.78rem;color:var(--text-dim);margin:8px 0 0;">현재 열려 있는 주소가 추가됩니다.</p>
+        </section>
+
+        <section>
+          <h2>바로가기</h2>
+          <ul class="fav-list" id="shortcutList"></ul>
+          <div class="add-fav-row">
+            <input id="scName" type="text" placeholder="이름" aria-label="바로가기 이름" />
+          </div>
+          <div class="add-fav-row">
+            <input id="scUrl" type="text" placeholder="https://..." aria-label="바로가기 주소" />
+            <button id="btnAddSc" type="button" title="바로가기 추가">＋</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="viewer" aria-label="웹사이트 표시 영역">
+        <iframe id="viewerFrame" class="hidden" title="웹사이트 뷰어"
+                referrerpolicy="no-referrer"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+        <div class="viewer-overlay" id="viewerOverlay">
+          <div class="viewer-card" id="viewerCard">
+            <div class="big-icon" aria-hidden="true">🧭</div>
+            <h3>개인 작업 공간</h3>
+            <p>위 주소창에 <strong>https://</strong> 주소를 입력하거나, 왼쪽 즐겨찾기·바로가기를 선택하세요.</p>
+            <p>앱은 방문한 주소를 자동으로 기록하지 않습니다.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ===================== 설정 모달 ===================== -->
+<div id="settingsScrim" class="scrim hidden" role="dialog" aria-modal="true" aria-label="설정">
+  <div class="modal" style="max-width:480px;">
+    <h2>설정</h2>
+    <div class="settings-list">
+      <div class="settings-row">
+        <div class="info"><strong>테마</strong><span>다크 / 라이트 모드</span></div>
+        <button id="btnTheme" type="button">전환</button>
+      </div>
+      <div class="settings-row">
+        <div class="info"><strong>PIN 변경</strong><span>현재 PIN 확인 후 변경</span></div>
+        <button id="btnChangePin" type="button">변경</button>
+      </div>
+      <div class="settings-row">
+        <div class="info"><strong>모든 데이터 초기화</strong><span>즐겨찾기 · 바로가기 · PIN · 설정 삭제</span></div>
+        <button id="btnReset" class="danger" type="button">초기화</button>
+      </div>
+    </div>
+
+    <div class="notice">
+      <strong>저장 정책 안내</strong><br />
+      이 앱은 방문한 URL·검색어·방문 시간·페이지 제목을 자동으로 저장하지 않습니다.
+      이 기기 브라우저에 저장되는 것은 ① 직접 추가한 즐겨찾기·바로가기, ② PIN 해시,
+      ③ 테마 설정뿐입니다. 서버로 전송되는 데이터는 없습니다.
+    </div>
+    <div class="notice">
+      <strong>⚠️ 보안 한계 (꼭 읽어주세요)</strong><br />
+      • 이 PIN 잠금은 <strong>간단한 접근 가림</strong>이며, 강력한 계정 인증이나 암호화 저장소가 아닙니다.
+      소스 코드 열람, 브라우저 저장소 직접 접근, 사이트 데이터 삭제로 우회·초기화될 수 있습니다.<br />
+      • 이 앱은 <strong>Chrome 방문 기록, Google 계정 활동, 학교 네트워크·기기 관리 기록을 막을 수 없습니다.</strong>
+      그것들은 이 웹 앱이 손댈 수 없는 영역입니다.<br />
+      • 새 탭/직접 이동은 Chrome 기록에 남을 수 있으며, 이 앱은 그것을 지우거나 숨길 수 없습니다.
+    </div>
+
+    <div class="msg" id="settingsMsg"></div>
+    <div class="btn-row">
+      <button id="btnCloseSettings" type="button">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PIN 변경 모달 ===================== -->
+<div id="changeScrim" class="scrim hidden" role="dialog" aria-modal="true" aria-label="PIN 변경">
+  <div class="modal">
+    <h2>PIN 변경</h2>
+    <div class="field">
+      <label for="curPin">현재 PIN</label>
+      <input id="curPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" />
+    </div>
+    <div class="field">
+      <label for="newPin1">새 PIN (4자리 이상)</label>
+      <input id="newPin1" type="password" inputmode="numeric" autocomplete="off" maxlength="12" />
+    </div>
+    <div class="field">
+      <label for="newPin2">새 PIN 확인</label>
+      <input id="newPin2" type="password" inputmode="numeric" autocomplete="off" maxlength="12" />
+    </div>
+    <div class="msg err" id="changeMsg" role="alert"></div>
+    <div class="btn-row">
+      <button id="btnCancelChange" type="button">취소</button>
+      <button id="btnConfirmChange" class="primary" type="button">변경</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Private Study — 개인 웹 작업 공간
+   설계 원칙:
+   - 방문한 URL/검색어/시간/제목을 자동 저장하지 않는다.
+   - 저장되는 것: 즐겨찾기, 바로가기, PIN 해시(평문 아님), 테마.
+   - 현재 주소는 "이동"할 때만 메모리에 잠깐 들고, 잠금/초기화 시 비운다.
+   - 서버 전송 없음. 외부 분석/광고/추적 스크립트 없음.
+   ========================================================================= */
+
+/* ---------- 저장 키 (의도적으로 명시적인 것만) ---------- */
+const STORE = {
+  pin: "ps.pin.v1",          // {salt, hash, iter} — PBKDF2 결과
+  favs: "ps.favorites.v1",   // [{name,url}]
+  shortcuts: "ps.shortcuts.v1",
+  theme: "ps.theme.v1",      // "dark" | "light"
+};
+
+/* 주소창/뷰어의 "현재 주소"는 저장소가 아니라 메모리에만 둔다. */
+let currentUrl = null;
+
+/* ---------- DOM 헬퍼 ---------- */
+const $ = (id) => document.getElementById(id);
+function show(el) { el.classList.remove("hidden"); }
+function hide(el) { el.classList.add("hidden"); }
+
+/* ---------- 안전한 저장소 접근 (private 모드 등에서 throw 대비) ---------- */
+function lsGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, val); return true; } catch { return false; }
+}
+function lsDel(key) {
+  try { localStorage.removeItem(key); } catch { /* 무시 */ }
+}
+
+/* =========================================================================
+   1) URL 검증
+   - https만 우선 허용, http는 거부(정적 HTTPS 호스팅에서 혼합콘텐츠 차단됨)
+   - javascript:, data:, file: 등 위험 프로토콜 거부
+   - 스킴 없으면 https:// 를 붙여 재시도
+   ========================================================================= */
+function normalizeAndValidateUrl(raw) {
+  const input = (raw || "").trim();
+  if (!input) return { ok: false, reason: "주소를 입력하세요." };
+
+  let candidate = input;
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
+    // 스킴이 없으면 https 로 가정
+    candidate = "https://" + candidate;
+  }
+
+  let u;
+  try {
+    u = new URL(candidate);
+  } catch {
+    return { ok: false, reason: "올바른 주소 형식이 아닙니다." };
+  }
+
+  if (u.protocol !== "https:") {
+    if (u.protocol === "http:") {
+      return { ok: false, reason: "보안을 위해 https:// 주소만 지원합니다. (http는 차단됨)" };
+    }
+    return { ok: false, reason: `지원하지 않는 프로토콜입니다: ${u.protocol}` };
+  }
+  if (!u.hostname || u.hostname.indexOf(".") === -1) {
+    return { ok: false, reason: "도메인이 올바르지 않습니다." };
+  }
+  return { ok: true, url: u.href };
+}
+
+/* =========================================================================
+   2) 웹 암호화 — PIN 해시 (PBKDF2 + 임의 salt)
+   ========================================================================= */
+const CRYPTO_OK = !!(window.crypto && window.crypto.subtle && window.isSecureContext);
+const PBKDF2_ITER = 150000;
+
+function bufToB64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64ToBuf(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function derivePinHash(pin, saltBytes, iter) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: saltBytes, iterations: iter, hash: "SHA-256" },
+    keyMaterial, 256
+  );
+  return bufToB64(bits);
+}
+
+async function createPinRecord(pin) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await derivePinHash(pin, salt, PBKDF2_ITER);
+  return { salt: bufToB64(salt), hash, iter: PBKDF2_ITER };
+}
+
+async function verifyPin(pin, record) {
+  try {
+    const salt = b64ToBuf(record.salt);
+    const hash = await derivePinHash(pin, salt, record.iter || PBKDF2_ITER);
+    // 타이밍 차이를 조금이라도 줄이기 위한 길이/문자 비교
+    if (hash.length !== record.hash.length) return false;
+    let diff = 0;
+    for (let i = 0; i < hash.length; i++) diff |= hash.charCodeAt(i) ^ record.hash.charCodeAt(i);
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
+function getPinRecord() {
+  const raw = lsGet(STORE.pin);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+/* =========================================================================
+   3) 잠금 상태 관리 + 재시도 제한 + 자동 잠금
+   ========================================================================= */
+const LOCK = {
+  attempts: 0,
+  maxAttempts: 5,
+  lockoutUntil: 0,
+  idleTimer: null,
+  idleMs: 5 * 60 * 1000, // 5분
+  pinBuffer: "",
+  isLocked: true,
+};
+
+function renderPinDots() {
+  const dots = $("pinDots");
+  dots.innerHTML = "";
+  const len = Math.max(4, LOCK.pinBuffer.length);
+  for (let i = 0; i < Math.min(len, 12); i++) {
+    const d = document.createElement("span");
+    d.className = "pin-dot" + (i < LOCK.pinBuffer.length ? " filled" : "");
+    dots.appendChild(d);
+  }
+}
+
+function openLockScreen() {
+  LOCK.isLocked = true;
+  // 잠금 시 현재 주소/뷰어 콘텐츠를 비운다 (메모리에서도 제거)
+  clearViewer();
+  currentUrl = null;
+  $("addrInput").value = "";
+  hide($("app"));
+  hide($("settingsScrim"));
+  hide($("changeScrim"));
+  LOCK.pinBuffer = "";
+  $("pinInput").value = "";
+  $("lockMsg").textContent = "";
+  renderPinDots();
+  show($("lockScreen"));
+  setTimeout(() => $("pinInput").focus(), 50);
+}
+
+function closeLockScreen() {
+  LOCK.isLocked = false;
+  LOCK.attempts = 0;
+  hide($("lockScreen"));
+  show($("app"));
+  resetIdleTimer();
+}
+
+async function attemptUnlock() {
+  const now = Date.now();
+  if (now < LOCK.lockoutUntil) {
+    const sec = Math.ceil((LOCK.lockoutUntil - now) / 1000);
+    $("lockMsg").textContent = `잠시 후 다시 시도하세요. (${sec}초)`;
+    return;
+  }
+  const pin = $("pinInput").value;
+  if (!pin) { $("lockMsg").textContent = "PIN을 입력하세요."; return; }
+
+  const record = getPinRecord();
+  if (!record) { $("lockMsg").textContent = "PIN 정보가 없습니다. 초기화 후 다시 설정하세요."; return; }
+
+  const ok = await verifyPin(pin, record);
+  if (ok) {
+    closeLockScreen();
+  } else {
+    LOCK.attempts++;
+    $("pinInput").value = "";
+    LOCK.pinBuffer = "";
+    renderPinDots();
+    if (LOCK.attempts >= LOCK.maxAttempts) {
+      // 재시도 제한: 시도 횟수에 따라 대기 시간 증가
+      const waitSec = 30 * Math.pow(2, LOCK.attempts - LOCK.maxAttempts); // 30s, 60s, 120s...
+      LOCK.lockoutUntil = Date.now() + waitSec * 1000;
+      $("lockMsg").textContent = `시도가 너무 많습니다. ${waitSec}초 후 다시 시도하세요.`;
+    } else {
+      // 상세 사유는 노출하지 않음
+      $("lockMsg").textContent = `PIN이 올바르지 않습니다. (${LOCK.attempts}/${LOCK.maxAttempts})`;
+    }
+  }
+}
+
+function resetIdleTimer() {
+  if (LOCK.idleTimer) clearTimeout(LOCK.idleTimer);
+  if (LOCK.isLocked) return;
+  LOCK.idleTimer = setTimeout(() => { openLockScreen(); }, LOCK.idleMs);
+}
+
+/* =========================================================================
+   4) 뷰어 (iframe) — 5회 시도 후 진단, 무한 재시도 금지
+   ========================================================================= */
+const VIEW = {
+  loadTimer: null,
+  attempts: 0,
+  maxAttempts: 5,
+  settledOk: false,
+};
+
+function clearViewer() {
+  const frame = $("viewerFrame");
+  if (VIEW.loadTimer) { clearTimeout(VIEW.loadTimer); VIEW.loadTimer = null; }
+  frame.src = "about:blank";
+  hide(frame);
+  VIEW.attempts = 0;
+  VIEW.settledOk = false;
+  setOverlay("home");
+}
+
+function setOverlay(mode, data) {
+  const overlay = $("viewerOverlay");
+  const card = $("viewerCard");
+  if (mode === "none") { hide(overlay); return; }
+  show(overlay);
+
+  if (mode === "home") {
+    card.innerHTML = `
+      <div class="big-icon" aria-hidden="true">🧭</div>
+      <h3>개인 작업 공간</h3>
+      <p>위 주소창에 <strong>https://</strong> 주소를 입력하거나, 왼쪽 즐겨찾기·바로가기를 선택하세요.</p>
+      <p>앱은 방문한 주소를 자동으로 기록하지 않습니다.</p>`;
+  } else if (mode === "loading") {
+    card.innerHTML = `
+      <div class="spinner" aria-hidden="true"></div>
+      <h3>불러오는 중…</h3>
+      <p>${escapeHtml(data.host)}</p>
+      <p style="font-size:.82rem;">응답이 없으면 잠시 후 진단 안내가 표시됩니다.</p>`;
+  } else if (mode === "blocked") {
+    card.innerHTML = `
+      <div class="big-icon" aria-hidden="true">🚫</div>
+      <h3>이 사이트는 창 안에 표시되지 않습니다</h3>
+      <p><strong>${escapeHtml(data.host)}</strong> 사이트가 iframe 표시를 허용하지 않는 것으로 보입니다.
+      (${VIEW.maxAttempts}회 시도 후 중단했습니다.)</p>
+      <p style="text-align:left;">가능한 원인:</p>
+      <ul style="text-align:left;color:var(--text-dim);font-size:.88rem;line-height:1.6;">
+        <li>사이트가 <code>X-Frame-Options</code> 또는 <code>Content-Security-Policy: frame-ancestors</code>로 임베드를 차단</li>
+        <li>로그인/보안이 필요한 사이트 (은행·포털·일부 구글 서비스 등)</li>
+        <li>네트워크 오류 또는 사이트가 응답하지 않음</li>
+      </ul>
+      <p style="text-align:left;">대안:</p>
+      <ul style="text-align:left;color:var(--text-dim);font-size:.88rem;line-height:1.6;">
+        <li>주소가 정확한지 확인하고 다시 시도</li>
+        <li>해당 사이트는 iframe을 원천적으로 막는 경우가 많아, 이 앱에서는 표시할 수 없습니다</li>
+      </ul>
+      <p style="font-size:.8rem;">참고: 새 탭으로 직접 여는 방법은 Chrome 방문 기록에 남을 수 있어, 이 앱은 자동으로 새 탭을 열지 않습니다.</p>
+      <div class="btn-row">
+        <button type="button" id="retryBtn">다시 시도</button>
+        <button type="button" id="homeBtn">처음으로</button>
+      </div>`;
+    const rb = $("retryBtn"), hb = $("homeBtn");
+    if (rb) rb.addEventListener("click", () => { if (currentUrl) loadUrl(currentUrl, true); });
+    if (hb) hb.addEventListener("click", () => clearViewer());
+  } else if (mode === "error") {
+    card.innerHTML = `
+      <div class="big-icon" aria-hidden="true">⚠️</div>
+      <h3>표시할 수 없습니다</h3>
+      <p>${escapeHtml(data.reason)}</p>
+      <div class="btn-row"><button type="button" id="homeBtn2">처음으로</button></div>`;
+    const hb = $("homeBtn2");
+    if (hb) hb.addEventListener("click", () => clearViewer());
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/*
+  iframe 로드 결과를 100% 신뢰성 있게 감지할 수는 없다(교차 출처라 contentWindow 읽기 불가).
+  따라서: load 이벤트 + 타임아웃 휴리스틱을 쓰고, 막힌 것으로 판단되면
+  최대 5회까지만 재시도한 뒤 진단 안내를 표시한다. (무한 재시도 금지)
+*/
+function loadUrl(href, isRetry) {
+  const v = normalizeAndValidateUrl(href);
+  if (!v.ok) { setOverlay("error", { reason: v.reason }); return; }
+
+  currentUrl = v.url;                 // 메모리에만 보관 (저장 안 함)
+  $("addrInput").value = v.url;
+
+  if (!isRetry) VIEW.attempts = 0;
+  VIEW.settledOk = false;
+
+  const frame = $("viewerFrame");
+  const host = new URL(v.url).host;
+
+  if (VIEW.loadTimer) clearTimeout(VIEW.loadTimer);
+  setOverlay("loading", { host });
+  show(frame);
+
+  // load 이벤트가 성공/차단 모두에서 발생할 수 있으므로, 타임아웃과 함께 판단
+  const onLoad = () => {
+    // load가 떴다는 건 최소한 응답은 왔다는 것 → 오버레이를 치우고 사용자가 보게 함.
+    // (차단 페이지일 수도 있으나, 교차 출처라 구분 불가. 사용자가 판단)
+    VIEW.settledOk = true;
+    if (VIEW.loadTimer) { clearTimeout(VIEW.loadTimer); VIEW.loadTimer = null; }
+    setOverlay("none");
+  };
+  frame.onload = onLoad;
+
+  // 응답 자체가 없거나 느린 경우 대비 타임아웃
+  VIEW.loadTimer = setTimeout(() => {
+    if (VIEW.settledOk) return;
+    VIEW.attempts++;
+    if (VIEW.attempts < VIEW.maxAttempts) {
+      // 재시도 (지수적 간격은 과하므로 고정 재시도)
+      frame.src = "about:blank";
+      setTimeout(() => { frame.src = currentUrl; setOverlay("loading", { host }); }, 300);
+    } else {
+      hide(frame);
+      frame.src = "about:blank";
+      setOverlay("blocked", { host });
+    }
+  }, 4000);
+
+  frame.src = v.url;
+}
+
+/* =========================================================================
+   5) 즐겨찾기 & 바로가기 (명시적 저장만)
+   ========================================================================= */
+function loadList(key) {
+  const raw = lsGet(key);
+  if (!raw) return [];
+  try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : []; } catch { return []; }
+}
+function saveList(key, arr) { lsSet(key, JSON.stringify(arr)); }
+
+function renderFavorites() {
+  const list = $("favList");
+  const favs = loadList(STORE.favs);
+  list.innerHTML = "";
+  if (favs.length === 0) {
+    const li = document.createElement("li");
+    li.className = "fav-empty";
+    li.textContent = "아직 없습니다. 사이트를 연 뒤 ＋ 로 추가하세요.";
+    list.appendChild(li);
+    return;
+  }
+  favs.forEach((f, i) => list.appendChild(makeItem(f, i, STORE.favs, favs)));
+}
+
+function renderShortcuts() {
+  const list = $("shortcutList");
+  const scs = loadList(STORE.shortcuts);
+  list.innerHTML = "";
+  if (scs.length === 0) {
+    const li = document.createElement("li");
+    li.className = "fav-empty";
+    li.textContent = "자주 쓰는 사이트를 직접 등록하세요.";
+    list.appendChild(li);
+    return;
+  }
+  scs.forEach((f, i) => list.appendChild(makeItem(f, i, STORE.shortcuts, scs)));
+}
+
+function makeItem(item, index, key, arr) {
+  const li = document.createElement("li");
+  li.className = "fav-item";
+
+  const open = document.createElement("button");
+  open.className = "label ghost";
+  open.style.textAlign = "left";
+  open.textContent = item.name || item.url;
+  open.title = item.url;
+  open.addEventListener("click", () => loadUrl(item.url, false));
+
+  const del = document.createElement("button");
+  del.className = "ghost";
+  del.textContent = "✕";
+  del.setAttribute("aria-label", (item.name || item.url) + " 삭제");
+  del.addEventListener("click", () => {
+    arr.splice(index, 1);
+    saveList(key, arr);
+    key === STORE.favs ? renderFavorites() : renderShortcuts();
+  });
+
+  li.appendChild(open);
+  li.appendChild(del);
+  return li;
+}
+
+function addFavorite() {
+  if (!currentUrl) { flashPolicy("먼저 사이트를 연 뒤 추가하세요."); return; }
+  const name = ($("favName").value || "").trim() || new URL(currentUrl).host;
+  const favs = loadList(STORE.favs);
+  favs.push({ name, url: currentUrl });
+  saveList(STORE.favs, favs);
+  $("favName").value = "";
+  renderFavorites();
+}
+
+function addShortcut() {
+  const name = ($("scName").value || "").trim();
+  const v = normalizeAndValidateUrl($("scUrl").value);
+  if (!v.ok) { flashPolicy(v.reason); return; }
+  const scs = loadList(STORE.shortcuts);
+  scs.push({ name: name || new URL(v.url).host, url: v.url });
+  saveList(STORE.shortcuts, scs);
+  $("scName").value = "";
+  $("scUrl").value = "";
+  renderShortcuts();
+}
+
+let policyTimer = null;
+function flashPolicy(msg) {
+  const el = $("policyText");
+  const orig = "방문 기록을 저장하지 않습니다 · 즐겨찾기만 이 기기에 보관됩니다";
+  el.textContent = msg;
+  if (policyTimer) clearTimeout(policyTimer);
+  policyTimer = setTimeout(() => { el.textContent = orig; }, 3000);
+}
+
+/* =========================================================================
+   6) 테마
+   ========================================================================= */
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  lsSet(STORE.theme, theme);
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  applyTheme(cur === "light" ? "dark" : "light");
+}
+
+/* =========================================================================
+   7) 초기화 (모든 데이터 삭제)
+   ========================================================================= */
+function resetAll() {
+  const yes = window.confirm(
+    "모든 데이터를 삭제합니다.\n\n즐겨찾기, 바로가기, PIN, 테마 설정이 모두 사라지며 되돌릴 수 없습니다.\n계속하시겠습니까?"
+  );
+  if (!yes) return;
+  lsDel(STORE.pin);
+  lsDel(STORE.favs);
+  lsDel(STORE.shortcuts);
+  lsDel(STORE.theme);
+  currentUrl = null;
+  // 새로 시작
+  location.reload();
+}
+
+/* =========================================================================
+   8) PIN 변경
+   ========================================================================= */
+async function confirmChangePin() {
+  const cur = $("curPin").value;
+  const n1 = $("newPin1").value;
+  const n2 = $("newPin2").value;
+  const msg = $("changeMsg");
+  msg.className = "msg err";
+
+  const record = getPinRecord();
+  if (!record) { msg.textContent = "PIN 정보가 없습니다."; return; }
+  if (!(await verifyPin(cur, record))) { msg.textContent = "현재 PIN이 올바르지 않습니다."; return; }
+  if (!/^\d{4,12}$/.test(n1)) { msg.textContent = "새 PIN은 숫자 4~12자리여야 합니다."; return; }
+  if (n1 !== n2) { msg.textContent = "새 PIN이 일치하지 않습니다."; return; }
+
+  const rec = await createPinRecord(n1);
+  lsSet(STORE.pin, JSON.stringify(rec));
+  msg.className = "msg ok";
+  msg.textContent = "PIN이 변경되었습니다.";
+  $("curPin").value = $("newPin1").value = $("newPin2").value = "";
+  setTimeout(() => hide($("changeScrim")), 900);
+}
+
+/* =========================================================================
+   9) 초기 구동
+   ========================================================================= */
+function initCryptoWarning() {
+  const el = $("cryptoWarn");
+  if (CRYPTO_OK) {
+    el.innerHTML = "<strong>✅ 보안 환경 확인됨</strong><br />HTTPS + Web Crypto API로 PIN을 PBKDF2 해시로 안전하게 보관합니다.";
+  } else {
+    el.innerHTML = "<strong>⚠️ 제한된 환경</strong><br />Web Crypto API를 쓸 수 없는 환경(비-HTTPS 등)입니다. 안전한 PIN 해시를 만들 수 없어 PIN 기능이 제한됩니다. <strong>https:// 로 접속</strong>하면 정상 동작합니다.";
+  }
+}
+
+function boot() {
+  // 테마 복원
+  const savedTheme = lsGet(STORE.theme);
+  applyTheme(savedTheme === "light" ? "light" : "dark");
+
+  initCryptoWarning();
+  renderFavorites();
+  renderShortcuts();
+
+  const record = getPinRecord();
+  if (!record) {
+    // 최초 실행 → PIN 설정
+    show($("setupScrim"));
+    setTimeout(() => $("setupPin1").focus(), 50);
+  } else {
+    // PIN 있음 → 잠금 화면
+    openLockScreen();
+  }
+}
+
+/* =========================================================================
+   10) 이벤트 바인딩
+   ========================================================================= */
+function bindEvents() {
+  // 주소 이동
+  $("addrForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    loadUrl($("addrInput").value, false);
+  });
+
+  // 즐겨찾기 / 바로가기
+  $("btnAddFav").addEventListener("click", addFavorite);
+  $("btnAddSc").addEventListener("click", addShortcut);
+  $("scUrl").addEventListener("keydown", (e) => { if (e.key === "Enter") addShortcut(); });
+
+  // 잠금
+  $("btnLock").addEventListener("click", openLockScreen);
+  $("lockSubmit").addEventListener("click", attemptUnlock);
+  $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") attemptUnlock(); });
+  $("pinInput").addEventListener("input", (e) => {
+    LOCK.pinBuffer = e.target.value;
+    renderPinDots();
+  });
+  $("lockForgot").addEventListener("click", () => {
+    window.alert(
+      "PIN을 잊으셨나요?\n\n이 PIN은 이 기기 브라우저에만 저장되어 있어 복구할 수 없습니다.\n" +
+      "설정 → 모든 데이터 초기화로 즐겨찾기 등을 포함해 전부 지우고 다시 시작할 수 있습니다.\n\n" +
+      "브라우저의 '사이트 데이터 삭제'로도 초기화됩니다."
+    );
+  });
+
+  // 설정
+  $("btnSettings").addEventListener("click", () => { show($("settingsScrim")); });
+  $("btnCloseSettings").addEventListener("click", () => hide($("settingsScrim")));
+  $("btnTheme").addEventListener("click", toggleTheme);
+  $("btnReset").addEventListener("click", resetAll);
+  $("btnChangePin").addEventListener("click", () => {
+    hide($("settingsScrim"));
+    $("changeMsg").textContent = "";
+    show($("changeScrim"));
+    setTimeout(() => $("curPin").focus(), 50);
+  });
+  $("btnCancelChange").addEventListener("click", () => hide($("changeScrim")));
+  $("btnConfirmChange").addEventListener("click", confirmChangePin);
+
+  // 최초 PIN 설정
+  $("setupSubmit").addEventListener("click", async () => {
+    const p1 = $("setupPin1").value, p2 = $("setupPin2").value;
+    const msg = $("setupMsg");
+    if (!CRYPTO_OK) {
+      msg.textContent = "이 환경에서는 안전한 PIN을 만들 수 없습니다. https:// 로 접속해 주세요.";
+      return;
+    }
+    if (!/^\d{4,12}$/.test(p1)) { msg.textContent = "PIN은 숫자 4~12자리여야 합니다."; return; }
+    if (p1 !== p2) { msg.textContent = "PIN이 일치하지 않습니다."; return; }
+    const rec = await createPinRecord(p1);
+    if (!lsSet(STORE.pin, JSON.stringify(rec))) {
+      msg.textContent = "저장소에 접근할 수 없습니다. (시크릿 모드 등 확인)";
+      return;
+    }
+    hide($("setupScrim"));
+    closeLockScreen(); // 바로 사용 시작
+  });
+
+  // ESC 로 모달 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (!$("settingsScrim").classList.contains("hidden")) hide($("settingsScrim"));
+      if (!$("changeScrim").classList.contains("hidden")) hide($("changeScrim"));
+    }
+  });
+
+  // 자동 잠금: 사용자 활동 감지로 타이머 리셋
+  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach((ev) => {
+    document.addEventListener(ev, resetIdleTimer, { passive: true });
+  });
+
+  // 탭이 백그라운드로 갈 때도 안전하게 (선택적) — 활동 타이머만 유지
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) resetIdleTimer();
+  });
+}
+
+/* =========================================================================
+   11) 서비스 워커 (PWA) — sw.js 가 같은 폴더에 있을 때만 등록
+   ========================================================================= */
+function registerSW() {
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        /* sw.js 가 없거나 실패해도 앱 핵심 기능은 그대로 동작 */
+      });
+    });
+  }
+}
+
+/* ---------- 시작 ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  bindEvents();
+  boot();
+  registerSW();
+});
+</script>
+</body>
+</html>
